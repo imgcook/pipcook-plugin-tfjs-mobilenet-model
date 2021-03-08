@@ -1,19 +1,9 @@
-import { ModelDefineType, ImageSample, ImageDataset, ModelDefineArgsType, UniModel } from '@pipcook/pipcook-core';
-import * as tf from '@tensorflow/tfjs-node';
-import * as assert from 'assert';
-import Jimp from 'jimp';
+import * as tf from '@tensorflow/tfjs';
+import { DataSourceApi, ImageDataSourceMeta, Runtime, Sample } from '@pipcook/pipcook-core';
+import { Image as I } from '@pipcook/datacook';
+type Image = I.default;
 
 const MOBILENET_MODEL_PATH = 'http://ai-sample.oss-cn-hangzhou.aliyuncs.com/pipcook/models/mobilenet/web_model/model.json';
-
-/** @ignore
- * assertion test
- * @param data
- */
-const assertionTest = (data: ImageDataset) => {
-  assert.ok(data.metadata.feature, 'Image feature is missing');
-  assert.ok(data.metadata.feature.shape.length === 3, 'The size of an image must be 3d');
-};
-
 function argMax(array: any) {
   return [].map.call(array, (x: any, i: any) => [ x, i ]).reduce((r: any, a: any) => (a[0] > r[0] ? a : r))[1];
 }
@@ -26,19 +16,14 @@ function argMax(array: any) {
  * @param metrics (string | LossOrMetricFn | Array | {[outputName: string]: string | LossOrMetricFn}): [optional / default = ['accuracy']]
  * @param hiddenLayerUnits (number): [optional / default = 10]
 */
-const mobilenetModelDefine: ModelDefineType = async (data: ImageDataset, args: ModelDefineArgsType): Promise<UniModel> => {
+async function constructModel(options: Record<string, any>, labelMap: any){
   let {
     optimizer = tf.train.adam(),
     loss = 'categoricalCrossentropy',
     metrics = [ 'accuracy' ],
     hiddenLayerUnits = 10,
-    labelMap
-  } = args;
-
-  await data.trainLoader.next();
-  assertionTest(data);
-  const NUM_CLASSES = Object.keys(data.metadata.labelMap).length;
-  labelMap = data.metadata.labelMap;
+  } = options;
+  const NUM_CLASSES = labelMap.length;
 
   let model: tf.LayersModel | null = null;
 
@@ -73,29 +58,85 @@ const mobilenetModelDefine: ModelDefineType = async (data: ImageDataset, args: M
     metrics
   });
 
-  return {
-    model,
-    metrics,
-    predict: async function (inputData: ImageSample) {
-      let predict: any;
-      const image = await Jimp.read(inputData.data);
-      const trainImageBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
-      const imageArray = new Uint8Array(trainImageBuffer);
-      const imgTensor = tf.node.decodeImage(imageArray, 3);
-      const predictResultArray = this.model.predict(imgTensor.expandDims(0));
-      const index = argMax(predictResultArray.dataSync());
-      if (labelMap) {
-        for (let key in labelMap) {
-          if (labelMap[key] === index) {
-            predict = key;
-          }
-        }
-      } else {
-        predict = predictResultArray;
-      }
-      return predict;
-    }
-  };
-};
+  return model;
+}
 
-export default mobilenetModelDefine;
+
+/**
+ * this is plugin used to train tfjs model with pascal voc data format for image classification problem.
+ * @param data : train data
+ * @param model : model loaded before
+ * @param epochs : need to specify epochs
+ * @param batchSize : need to specify batch size
+ * @param optimizer : need to specify optimizer
+ */
+async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>) {
+  const {
+    epochs = 10,
+    batchSize = 16,
+    modelDir
+  } = options;
+  const { size } = await dataSource.getDataSourceMeta();
+  console.log(tf.version)
+  const { train: trainSize } = size;
+  const batchesPerEpoch = Math.floor(trainSize / batchSize);
+
+  for (let i = 0; i < epochs; i++) {
+    console.log(`Epoch ${i}/${epochs} start`);
+    for (let j = 0; j < batchesPerEpoch; j++) {
+      const dataBatch = await dataSource.nextBatchTrain(batchSize);
+      // @ts-ignore
+      const xs = tf.tidy(() => tf.stack(dataBatch.map((ele) => ele.data.toTensor())));
+      const ys = tf.tidy(() => tf.stack(dataBatch.map((ele) => ele.label)));
+      const trainRes = await model.trainOnBatch(xs, ys) as number[];
+      if (j % Math.floor(batchesPerEpoch / 10) === 0) {
+        console.log(`Iteration ${j}/${batchesPerEpoch} result --- loss: ${trainRes[0]} accuracy: ${trainRes[1]}`);
+      }
+    }
+  }
+
+  await model.save(`file://${modelDir}`);
+}
+
+const main = async(options: Record<string, any>, api: Runtime<Image>) => {
+  const meta: ImageDataSourceMeta = await api.dataSource.getDataSourceMeta() as ImageDataSourceMeta;
+  // @ts-ignore
+  const labelMap = meta.labelMap;
+  // TODO add assert
+
+  const model = await constructModel(options, labelMap);
+  await trainModel(options, model, api.dataSource);
+}
+
+
+// const mobilenetModelDefine = async (data: ImageDataset, args: ModelDefineArgsType) => {
+  
+
+  
+
+//   return {
+//     model,
+//     metrics,
+//     predict: async function (inputData: ImageSample) {
+//       let predict: any;
+//       const image = await Jimp.read(inputData.data);
+//       const trainImageBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
+//       const imageArray = new Uint8Array(trainImageBuffer);
+//       const imgTensor = tf.node.decodeImage(imageArray, 3);
+//       const predictResultArray = this.model.predict(imgTensor.expandDims(0));
+//       const index = argMax(predictResultArray.dataSync());
+//       if (labelMap) {
+//         for (let key in labelMap) {
+//           if (labelMap[key] === index) {
+//             predict = key;
+//           }
+//         }
+//       } else {
+//         predict = predictResultArray;
+//       }
+//       return predict;
+//     }
+//   };
+// };
+
+export default main;

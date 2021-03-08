@@ -9,20 +9,25 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npm run clean && npm run compile",
+    "build": "npm run clean && npm run compile && npm run pack",
+    "pack": "webpack --config webpack.config.js",
     "clean": "rm -rf ./dist && rm -rf tsconfig.tsbuildinfo",
     "compile": "tsc -b tsconfig.json"
   },
   "author": "lewis617 <lewis617@163.com>",
   "license": "Apache 2.0",
   "dependencies": {
-    "@pipcook/pipcook-core": "^1.1.0",
-    "@tensorflow/tfjs-node": "2.8.6",
+    "@pipcook/datacook": "^0.0.1",
+    "@pipcook/pipcook-core": "^2.0.0-alpha.0",
+    "@tensorflow/tfjs": "^2.7.0",
     "jimp": "^0.10.0"
   },
   "devDependencies": {
     "@types/jasmine": "^3.5.7",
-    "nyc": "14.1.1"
+    "nyc": "14.1.1",
+    "webpack": "^5.24.3",
+    "webpack-cli": "^4.5.0",
+    "webpack-node-externals": "^2.5.2"
   },
   "publishConfig": {
     "access": "public"
