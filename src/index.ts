@@ -1,7 +1,7 @@
-import * as tf from '@tensorflow/tfjs';
-import { DataSourceApi, ImageDataSourceMeta, Runtime, Sample } from '@pipcook/pipcook-core';
-import { Image as I } from '@pipcook/datacook';
-type Image = I.default;
+import { DataSourceApi, ImageDataSourceMeta, Runtime } from '@pipcook/pipcook-core';
+import { Image } from './datacook';
+
+let tf: any;
 
 const MOBILENET_MODEL_PATH = 'http://ai-sample.oss-cn-hangzhou.aliyuncs.com/pipcook/models/mobilenet/web_model/model.json';
 function argMax(array: any) {
@@ -18,18 +18,21 @@ function argMax(array: any) {
 */
 async function constructModel(options: Record<string, any>, labelMap: any){
   let {
+    // @ts-ignore
     optimizer = tf.train.adam(),
     loss = 'categoricalCrossentropy',
     metrics = [ 'accuracy' ],
     hiddenLayerUnits = 10,
   } = options;
   const NUM_CLASSES = labelMap.length;
-
+  // @ts-ignore
   let model: tf.LayersModel | null = null;
-
+  // @ts-ignore
   const localModel = tf.sequential();
+  // @ts-ignore
   const mobilenet = await tf.loadLayersModel(MOBILENET_MODEL_PATH);
   const layer = mobilenet.getLayer('conv_pw_13_relu');
+  // @ts-ignore
   const truncatedMobilenet = tf.model({
     inputs: mobilenet.inputs,
     outputs: layer.output
@@ -38,18 +41,22 @@ async function constructModel(options: Record<string, any>, labelMap: any){
     _layer.trainable = false;
   }
   localModel.add(truncatedMobilenet);
+  // @ts-ignore
   localModel.add(tf.layers.flatten({
+    // @ts-ignore
     inputShape: layer.outputShape.slice(1) as tf.Shape
   }));
+  // @ts-ignore
   localModel.add(tf.layers.dense({
     units: hiddenLayerUnits,
     activation: 'relu'
   }));
+  // @ts-ignore
   localModel.add(tf.layers.dense({
     units: NUM_CLASSES,
     activation: 'softmax'
   }));
-
+  // @ts-ignore
   model = localModel as tf.LayersModel;
 
   model.compile({
@@ -70,35 +77,41 @@ async function constructModel(options: Record<string, any>, labelMap: any){
  * @param batchSize : need to specify batch size
  * @param optimizer : need to specify optimizer
  */
-async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>) {
+// @ts-ignore
+ async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>) {
+  const {
+    train,
+    modelDir=""
+  } = options;
   const {
     epochs = 10,
     batchSize = 16,
-    modelDir
-  } = options;
+  } = train;
+  console.log(modelDir)
+
   const { size } = await dataSource.getDataSourceMeta();
-  console.log(tf.version)
   const { train: trainSize } = size;
   const batchesPerEpoch = Math.floor(trainSize / batchSize);
-
   for (let i = 0; i < epochs; i++) {
     console.log(`Epoch ${i}/${epochs} start`);
     for (let j = 0; j < batchesPerEpoch; j++) {
-      const dataBatch = await dataSource.nextBatchTrain(batchSize);
+      const dataBatch = await dataSource.train.nextBatch(batchSize);
       // @ts-ignore
       const xs = tf.tidy(() => tf.stack(dataBatch.map((ele) => ele.data.toTensor())));
-      const ys = tf.tidy(() => tf.stack(dataBatch.map((ele) => ele.label)));
+      // @ts-ignore
+      const ys = tf.tidy(() => tf.stack(dataBatch.map((ele) => tf.oneHot(ele.label, 2))));
       const trainRes = await model.trainOnBatch(xs, ys) as number[];
       if (j % Math.floor(batchesPerEpoch / 10) === 0) {
         console.log(`Iteration ${j}/${batchesPerEpoch} result --- loss: ${trainRes[0]} accuracy: ${trainRes[1]}`);
       }
     }
   }
-
   await model.save(`file://${modelDir}`);
 }
 
-const main = async(options: Record<string, any>, api: Runtime<Image>) => {
+const main = async(api: Runtime<any>, options: Record<string, any>, context: any) => {
+  tf = context.framework['@tensorflow/tfjs-node']
+
   const meta: ImageDataSourceMeta = await api.dataSource.getDataSourceMeta() as ImageDataSourceMeta;
   // @ts-ignore
   const labelMap = meta.labelMap;

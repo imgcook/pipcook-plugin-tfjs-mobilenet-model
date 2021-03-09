@@ -16,11 +16,17 @@
   },
   "author": "lewis617 <lewis617@163.com>",
   "license": "Apache 2.0",
+  "peerDependencies": {
+    "@tensorflow/tfjs": "^2.8.3",
+    "@tensorflow/tfjs-backend-cpu": "^2.8.3",
+    "@tensorflow/tfjs-core": "^2.8.3",
+    "@tensorflow/tfjs-layers": "^2.8.3"
+  },
   "dependencies": {
     "@pipcook/datacook": "^0.0.1",
-    "@pipcook/pipcook-core": "^2.0.0-alpha.0",
-    "@tensorflow/tfjs": "^2.7.0",
-    "jimp": "^0.10.0"
+    "@pipcook/pipcook-core": "^2.0.0-alpha.1",
+    "jimp": "^0.10.0",
+    "node-fetch": "^2.6.1"
   },
   "devDependencies": {
     "@types/jasmine": "^3.5.7",
