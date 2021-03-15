@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@pipcook/datacook": "^0.0.1",
-    "@pipcook/pipcook-core": "^2.0.0-alpha.1",
+    "@pipcook/pipcook-core": "^2.0.0-alpha.4",
     "jimp": "^0.10.0",
     "node-fetch": "^2.6.1"
   },
