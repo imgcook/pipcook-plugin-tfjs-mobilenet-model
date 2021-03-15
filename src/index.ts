@@ -1,7 +1,4 @@
 import { DataSourceApi, ImageDataSourceMeta, Runtime } from '@pipcook/pipcook-core';
-import { Image } from './datacook';
-
-let tf: any;
 
 const MOBILENET_MODEL_PATH = 'http://ai-sample.oss-cn-hangzhou.aliyuncs.com/pipcook/models/mobilenet/web_model/model.json';
 function argMax(array: any) {
@@ -16,7 +13,7 @@ function argMax(array: any) {
  * @param metrics (string | LossOrMetricFn | Array | {[outputName: string]: string | LossOrMetricFn}): [optional / default = ['accuracy']]
  * @param hiddenLayerUnits (number): [optional / default = 10]
 */
-async function constructModel(options: Record<string, any>, labelMap: any){
+async function constructModel(options: Record<string, any>, labelMap: any, tf: any){
   let {
     // @ts-ignore
     optimizer = tf.train.adam(),
@@ -78,15 +75,13 @@ async function constructModel(options: Record<string, any>, labelMap: any){
  * @param optimizer : need to specify optimizer
  */
 // @ts-ignore
- async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>) {
+ async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>, tf: any) {
   const {
     train,
-    modelDir=""
-  } = options;
-  const {
     epochs = 10,
     batchSize = 16,
-  } = train;
+    modelDir=""
+  } = options;
   console.log(modelDir)
 
   const { size } = await dataSource.getDataSourceMeta();
@@ -97,7 +92,8 @@ async function constructModel(options: Record<string, any>, labelMap: any){
     for (let j = 0; j < batchesPerEpoch; j++) {
       const dataBatch = await dataSource.train.nextBatch(batchSize);
       // @ts-ignore
-      const xs = tf.tidy(() => tf.stack(dataBatch.map((ele) => ele.data.toTensor())));
+      console.log(dataBatch)
+      const xs = tf.tidy(() => tf.stack(dataBatch.map((ele) => ele.data)));
       // @ts-ignore
       const ys = tf.tidy(() => tf.stack(dataBatch.map((ele) => tf.oneHot(ele.label, 2))));
       const trainRes = await model.trainOnBatch(xs, ys) as number[];
@@ -110,46 +106,15 @@ async function constructModel(options: Record<string, any>, labelMap: any){
 }
 
 const main = async(api: Runtime<any>, options: Record<string, any>, context: any) => {
-  tf = context.framework['@tensorflow/tfjs-node']
-
+  let tf = await context.importJS('@tensorflow/tfjs-node');
+  console.log(tf)
   const meta: ImageDataSourceMeta = await api.dataSource.getDataSourceMeta() as ImageDataSourceMeta;
   // @ts-ignore
   const labelMap = meta.labelMap;
   // TODO add assert
 
-  const model = await constructModel(options, labelMap);
-  await trainModel(options, model, api.dataSource);
+  const model = await constructModel(options, labelMap, tf);
+  await trainModel(options, model, api.dataSource, tf);
 }
-
-
-// const mobilenetModelDefine = async (data: ImageDataset, args: ModelDefineArgsType) => {
-  
-
-  
-
-//   return {
-//     model,
-//     metrics,
-//     predict: async function (inputData: ImageSample) {
-//       let predict: any;
-//       const image = await Jimp.read(inputData.data);
-//       const trainImageBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
-//       const imageArray = new Uint8Array(trainImageBuffer);
-//       const imgTensor = tf.node.decodeImage(imageArray, 3);
-//       const predictResultArray = this.model.predict(imgTensor.expandDims(0));
-//       const index = argMax(predictResultArray.dataSync());
-//       if (labelMap) {
-//         for (let key in labelMap) {
-//           if (labelMap[key] === index) {
-//             predict = key;
-//           }
-//         }
-//       } else {
-//         predict = predictResultArray;
-//       }
-//       return predict;
-//     }
-//   };
-// };
 
 export default main;

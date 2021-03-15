@@ -1,1 +1,0 @@
-export { Beta } from './beta';
