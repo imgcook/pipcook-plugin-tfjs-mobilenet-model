@@ -75,14 +75,11 @@ async function constructModel(options: Record<string, any>, labelMap: any, tf: a
  * @param optimizer : need to specify optimizer
  */
 // @ts-ignore
- async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>, tf: any) {
+ async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>, tf: any, modelDir: string) {
   const {
-    train,
     epochs = 10,
     batchSize = 16,
-    modelDir=""
   } = options;
-  console.log(modelDir)
 
   const { size } = await dataSource.getDataSourceMeta();
   const { train: trainSize } = size;
@@ -92,7 +89,6 @@ async function constructModel(options: Record<string, any>, labelMap: any, tf: a
     for (let j = 0; j < batchesPerEpoch; j++) {
       const dataBatch = await dataSource.train.nextBatch(batchSize);
       // @ts-ignore
-      console.log(dataBatch)
       const xs = tf.tidy(() => tf.stack(dataBatch.map((ele) => ele.data)));
       // @ts-ignore
       const ys = tf.tidy(() => tf.stack(dataBatch.map((ele) => tf.oneHot(ele.label, 2))));
@@ -112,13 +108,15 @@ const main = async(api: Runtime<any>, options: Record<string, any>, context: any
   } catch {
     tf = await context.importJS('@tensorflow/tfjs-node');
   }
+  const {modelDir} = context.workspace;
   const meta: ImageDataSourceMeta = await api.dataSource.getDataSourceMeta() as ImageDataSourceMeta;
   // @ts-ignore
   const labelMap = meta.labelMap;
   // TODO add assert
 
   const model = await constructModel(options, labelMap, tf);
-  await trainModel(options, model, api.dataSource, tf);
+  await trainModel(options, model, api.dataSource, tf, modelDir);
+  api.saveModel(modelDir);
 }
 
 export default main;
