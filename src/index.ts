@@ -85,6 +85,7 @@ async function constructModel(options: Record<string, any>, labelMap: any, tf: a
   const { train: trainSize } = size;
   const batchesPerEpoch = Math.floor(trainSize / batchSize);
   for (let i = 0; i < epochs; i++) {
+    dataSource.train.seek(0);
     console.log(`Epoch ${i}/${epochs} start`);
     for (let j = 0; j < batchesPerEpoch; j++) {
       const dataBatch = await dataSource.train.nextBatch(batchSize);
