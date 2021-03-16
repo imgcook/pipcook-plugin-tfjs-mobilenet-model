@@ -106,8 +106,12 @@ async function constructModel(options: Record<string, any>, labelMap: any, tf: a
 }
 
 const main = async(api: Runtime<any>, options: Record<string, any>, context: any) => {
-  let tf = await context.importJS('@tensorflow/tfjs-node');
-  console.log(tf)
+  let tf;
+  try {
+    tf = await context.importJS('@tensorflow/tfjs-node-gpu');
+  } catch {
+    tf = await context.importJS('@tensorflow/tfjs-node');
+  }
   const meta: ImageDataSourceMeta = await api.dataSource.getDataSourceMeta() as ImageDataSourceMeta;
   // @ts-ignore
   const labelMap = meta.labelMap;
