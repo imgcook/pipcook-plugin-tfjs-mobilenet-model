@@ -97,7 +97,11 @@ async function constructModel(options: Record<string, any>, labelMap: any, tf: a
       if (j % Math.floor(batchesPerEpoch / 10) === 0) {
         console.log(`Iteration ${j}/${batchesPerEpoch} result --- loss: ${trainRes[0]} accuracy: ${trainRes[1]}`);
       }
+      xs.dispose();
+      ys.dispose();
+      dataBatch.forEach((ele) => ele.data.dispose());
     }
+    console.log(`Epoch ${i}`, tf.memory())
   }
   await model.save(`file://${modelDir}`);
 }
