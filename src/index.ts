@@ -1,4 +1,5 @@
-import { DataSourceApi, ImageDataSourceMeta, Runtime } from '@pipcook/pipcook-core';
+import { ModelEntry, Runtime, ScriptContext } from '@pipcook/core';
+import { Dataset } from '@pipcook/datacook';
 
 const MOBILENET_MODEL_PATH = 'http://ai-sample.oss-cn-hangzhou.aliyuncs.com/pipcook/models/mobilenet/web_model/model.json';
 function argMax(array: any) {
@@ -75,20 +76,23 @@ async function constructModel(options: Record<string, any>, labelMap: any, tf: a
  * @param optimizer : need to specify optimizer
  */
 // @ts-ignore
- async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>, tf: any, modelDir: string) {
+ async function trainModel(options: Record<string, any>, model: tf.LayersModel, dataSource: DataSourceApi<Image>, tf: any) {
   const {
+    train,
     epochs = 10,
     batchSize = 16,
+    modelDir=""
   } = options;
+  console.log(modelDir)
 
   const { size } = await dataSource.getDataSourceMeta();
   const { train: trainSize } = size;
   const batchesPerEpoch = Math.floor(trainSize / batchSize);
   for (let i = 0; i < epochs; i++) {
-    dataSource.train.seek(0);
     console.log(`Epoch ${i}/${epochs} start`);
     for (let j = 0; j < batchesPerEpoch; j++) {
       const dataBatch = await dataSource.train.nextBatch(batchSize);
+      console.log(dataBatch)
       // @ts-ignore
       const xs = tf.tidy(() => tf.stack(dataBatch.map((ele) => ele.data)));
       // @ts-ignore
@@ -97,31 +101,27 @@ async function constructModel(options: Record<string, any>, labelMap: any, tf: a
       if (j % Math.floor(batchesPerEpoch / 10) === 0) {
         console.log(`Iteration ${j}/${batchesPerEpoch} result --- loss: ${trainRes[0]} accuracy: ${trainRes[1]}`);
       }
-      xs.dispose();
-      ys.dispose();
-      dataBatch.forEach((ele) => ele.data.dispose());
     }
-    console.log(`Epoch ${i}`, tf.memory())
   }
   await model.save(`file://${modelDir}`);
 }
 
-const main = async(api: Runtime<any>, options: Record<string, any>, context: any) => {
+const main: ModelEntry<Dataset.Types.Sample, Dataset.Types.ImageDatasetMeta> = async (api: Runtime<Dataset.Types.Sample, Dataset.Types.ImageDatasetMeta>, options: Record<string, any>, context: ScriptContext) => {
   let tf;
   try {
     tf = await context.importJS('@tensorflow/tfjs-node-gpu');
   } catch {
     tf = await context.importJS('@tensorflow/tfjs-node');
   }
-  const {modelDir} = context.workspace;
-  const meta: ImageDataSourceMeta = await api.dataSource.getDataSourceMeta() as ImageDataSourceMeta;
+  // @ts-ignore
+  const meta: Dataset.Types.ImageDatasetMeta = await api.dataset.getDatasetMeta() as Dataset.Types.ImageDatasetMeta;
   // @ts-ignore
   const labelMap = meta.labelMap;
   // TODO add assert
 
   const model = await constructModel(options, labelMap, tf);
-  await trainModel(options, model, api.dataSource, tf, modelDir);
-  api.saveModel(modelDir);
+  // @ts-ignore
+  await trainModel(options, model, api.dataset, tf);
 }
 
 export default main;

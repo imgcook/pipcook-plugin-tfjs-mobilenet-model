@@ -23,8 +23,8 @@
     "@tensorflow/tfjs-layers": "^2.8.3"
   },
   "dependencies": {
-    "@pipcook/datacook": "^0.0.1",
-    "@pipcook/pipcook-core": "^2.0.0-alpha.4",
+    "@pipcook/datacook": "0.0.7",
+    "@pipcook/core": "^2.0.0-rc.3",
     "jimp": "^0.10.0",
     "node-fetch": "^2.6.1"
   },
